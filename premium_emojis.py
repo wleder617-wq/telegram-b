@@ -15,7 +15,7 @@ PREMIUM_EMOJIS = {
 
 def get_emoji_tag(emoji_name, fallback_emoji):
   """
-  تحويل اسم الملصق إلى وسم HTML مع معرف الملصق
+  تحويل اسم الملصق إلى وسم HTMتL مع معرف الملصق
 
   Args:
       emoji_name: اسم الملصق (مثل "FIRE")
