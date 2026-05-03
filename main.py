@@ -23,8 +23,8 @@ E_KISS = get_emoji_tag('KISS', '😘')
 E_PLEASE = get_emoji_tag('PLEADING_FACE', '🥺')
 E_SPARKLES = get_emoji_tag('STAR_GOLD', '✨')
 
-TOKEN = "8721285488:AAGym7ilHiXEBHQ-gkjIsTtNzfdZFwSZsrw"
-DATABASE = 'payments.db'
+TOKEN = "7997852544:AAH6hlFUJjt3f9CxyxL4O9b91n-svlI5hwk"
+DATABASE = os.environ.get("DATABASE_PATH", "/app/data/payments.db")
 PROVIDER_TOKEN = '187703658:TEST:5d5b04968f5d1a03e9fc853d6895cf8f8f5254fb'
 ADMIN_IDS = [7972155518]
 NOTIFY_IDS = [7972155518]
@@ -71,6 +71,11 @@ def run_flask():
     app.run(host='0.0.0.0', port=5000)
 
 def init_db():
+    # === THE FIX: Create directory if it doesn't exist ===
+    db_dir = os.path.dirname(os.path.abspath(DATABASE))
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+    # =====================================================
     print(f"DEBUG: Initializing database at {os.path.abspath(DATABASE)}")
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
@@ -229,7 +234,6 @@ def get_unsent_videos(user_id, limit=50):
             cursor = conn.cursor()
             cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
 
-            # First try to get truly unsent videos
             query_unsent = '''
                 SELECT v.id, v.file_id 
                 FROM videos v 
@@ -241,7 +245,6 @@ def get_unsent_videos(user_id, limit=50):
             cursor.execute(query_unsent, (user_id, limit))
             videos = cursor.fetchall()
 
-            # If we don't have enough unsent videos, fill the rest with random videos (recycling)
             if len(videos) < limit:
                 needed = limit - len(videos)
                 exclude_ids = [v[0] for v in videos]
@@ -461,7 +464,6 @@ def start_keyboard(user_id=None):
     keyboard = types.InlineKeyboardMarkup(row_width=2)
     lang = get_user_language(user_id) if user_id else 'en'
 
-    # Get Star Emoji ID
     from premium_emojis import PREMIUM_EMOJIS
     star_emoji_id = PREMIUM_EMOJIS.get('STAR_GOLD')
 
@@ -478,7 +480,7 @@ def start_keyboard(user_id=None):
         global BOT_USERNAME
         if not BOT_USERNAME: BOT_USERNAME = bot.get_me().username
         invite_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-        share_text = f"Hey! I found an amazing Video Bot! 🎬\n\nGet videos just by joining!\nInvite friends & unlock videos!\nContent delivered instantly!\n\nJoin now\n{invite_link}"
+        share_text = f"Hey! I found an amazing Video Bot! \U0001f3ac\n\nGet videos just by joining!\nInvite friends & unlock videos!\nContent delivered instantly!\n\nJoin now\n{invite_link}"
         import urllib.parse
         share_url = f"https://t.me/share/url?url={urllib.parse.quote(invite_link)}&text={urllib.parse.quote(share_text)}"
 
@@ -507,7 +509,7 @@ def start_keyboard(user_id=None):
 
     hot_emoji_1 = "6087135901694040510"
     hot_emoji_2 = "6087135936053777739"
-    hot_btn = types.InlineKeyboardButton(text="⭐⭐ Offers", callback_data="offer_menu")
+    hot_btn = types.InlineKeyboardButton(text="\u2b50\u2b50 Offers", callback_data="offer_menu")
     original_hot_to_dict = hot_btn.to_dict
     def hot_to_dict():
         data = original_hot_to_dict()
@@ -523,6 +525,8 @@ def start_keyboard(user_id=None):
     keyboard.add(styled_button(
         text=get_string('leaderboard', lang),
         callback_data="leaderboard", style="primary", emoji_id=PREMIUM_EMOJIS.get('STAR_GOLD')))
+
+    keyboard.add(styled_button(text="\U0001f3a8 Generate Image \u2014 3 Stars", callback_data="gen_image", style="primary"))
 
     keyboard.add(types.InlineKeyboardButton("Language", callback_data="change_lang"))
 
@@ -563,21 +567,20 @@ def handle_offer_menu(call):
     user_id = call.from_user.id
     lang = get_user_language(user_id)
 
-    # Get Emoji IDs
     from premium_emojis import PREMIUM_EMOJIS
     star_id = PREMIUM_EMOJIS.get('STAR_GOLD')
 
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        styled_button("⭐ 100 Stars ➔ 120 Videos", callback_data="buy_120", emoji_id=star_id),
-        styled_button("⭐ 250 Stars ➔ 350 Videos", callback_data="buy_350", emoji_id=star_id),
-        styled_button("⭐ 500 Stars ➔ 750 Videos", callback_data="buy_750", emoji_id=star_id),
-        styled_button("⭐ 1000 Stars ➔ 1600 Videos", callback_data="buy_1600", emoji_id=star_id),
+        styled_button("\u2b50 100 Stars \u27a4 120 Videos", callback_data="buy_120", emoji_id=star_id),
+        styled_button("\u2b50 250 Stars \u27a4 350 Videos", callback_data="buy_350", emoji_id=star_id),
+        styled_button("\u2b50 500 Stars \u27a4 750 Videos", callback_data="buy_750", emoji_id=star_id),
+        styled_button("\u2b50 1000 Stars \u27a4 1600 Videos", callback_data="buy_1600", emoji_id=star_id),
         styled_button(get_string('back_to_start', lang), callback_data="back_to_start", style="primary")
     )
 
     bot.edit_message_text(
-        PREMIUM_EMOJI_LINE + "\n✨ <b>Special Premium Offers</b> ✨\n\nChoose your pack and get instant delivery!",
+        PREMIUM_EMOJI_LINE + "\n\u2728 <b>Special Premium Offers</b> \u2728\n\nChoose your pack and get instant delivery!",
         call.message.chat.id,
         call.message.message_id,
         reply_markup=keyboard,
@@ -589,22 +592,21 @@ def handle_offer_command(message):
     user_id = message.from_user.id
     lang = get_user_language(user_id)
 
-    # Get Emoji IDs
     from premium_emojis import PREMIUM_EMOJIS
     star_id = PREMIUM_EMOJIS.get('STAR_GOLD')
 
     keyboard = types.InlineKeyboardMarkup(row_width=1)
     keyboard.add(
-        styled_button("⭐ 100 Stars ➔ 120 Videos", callback_data="buy_120", emoji_id=star_id),
-        styled_button("⭐ 250 Stars ➔ 350 Videos", callback_data="buy_350", emoji_id=star_id),
-        styled_button("⭐ 500 Stars ➔ 750 Videos", callback_data="buy_750", emoji_id=star_id),
-        styled_button("⭐ 1000 Stars ➔ 1600 Videos", callback_data="buy_1600", emoji_id=star_id),
+        styled_button("\u2b50 100 Stars \u27a4 120 Videos", callback_data="buy_120", emoji_id=star_id),
+        styled_button("\u2b50 250 Stars \u27a4 350 Videos", callback_data="buy_350", emoji_id=star_id),
+        styled_button("\u2b50 500 Stars \u27a4 750 Videos", callback_data="buy_750", emoji_id=star_id),
+        styled_button("\u2b50 1000 Stars \u27a4 1600 Videos", callback_data="buy_1600", emoji_id=star_id),
         styled_button(get_string('back_to_start', lang), callback_data="back_to_start", style="primary")
     )
 
     bot.send_message(
         message.chat.id,
-        PREMIUM_EMOJI_LINE + "\n✨ <b>Special Premium Offers</b> ✨\n\nChoose your pack and get instant delivery!",
+        PREMIUM_EMOJI_LINE + "\n\u2728 <b>Special Premium Offers</b> \u2728\n\nChoose your pack and get instant delivery!",
         reply_markup=keyboard,
         parse_mode='HTML'
     )
@@ -617,7 +619,6 @@ def handle_payment_request(call):
     except ValueError:
         return
 
-    # Map video counts to Star prices
     stars_map = {
         7: 7,
         65: 65,
@@ -635,7 +636,7 @@ def handle_payment_request(call):
         title=f"Premium Video Pack ({count})",
         description=f"Get {count} exclusive premium videos instantly!",
         invoice_payload=f"deliver_{user_id}_{count}",
-        provider_token="", # Stars don't need provider token
+        provider_token="",
         currency="XTR",
         prices=prices,
         start_parameter="premium_videos"
@@ -651,7 +652,7 @@ def handle_referral_menu(call):
     global BOT_USERNAME
     if not BOT_USERNAME: BOT_USERNAME = bot.get_me().username
     invite_link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-    share_text = f"🔥 Hey! I found an amazing Premium Video Bot! 🎬\n\n🎁 Get FREE videos just by joining!\n✨ Invite friends & unlock up to 750+ videos!\n⭐ Premium content delivered instantly!\n\n👇 Join now 👇\n{invite_link}"
+    share_text = f"\U0001f525 Hey! I found an amazing Premium Video Bot! \U0001f3ac\n\n\U0001f381 Get FREE videos just by joining!\n\u2728 Invite friends & unlock up to 750+ videos!\n\u2b50 Premium content delivered instantly!\n\n\U0001f447 Join now \U0001f447\n{invite_link}"
     import urllib.parse
     share_url = f"https://t.me/share/url?url={urllib.parse.quote(invite_link)}&text={urllib.parse.quote(share_text)}"
 
@@ -682,12 +683,6 @@ def handle_referral_menu(call):
         keyboard.add(styled_button(get_string('claim_rewards', lang), callback_data="claim_rewards", style="danger"))
 
     keyboard.add(styled_button(get_string('back_to_start', lang), callback_data="back_to_start", style="primary"))
-
-    try:
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, parse_mode='HTML')
-    except:
-        try: bot.edit_message_reply_markup(call.message.chat.id, call.message.message_id, reply_markup=keyboard)
-        except: pass
 
     try:
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=keyboard, parse_mode='HTML')
@@ -750,38 +745,6 @@ def handle_claim_rewards(call):
                 f"\U0001f3c6 Tiers: {', '.join([n for n, _ in tiers_claimed_now])}",
                 parse_mode='HTML')
         except: pass
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("buy_"))
-def handle_payment_request(call):
-    user_id = call.from_user.id
-    try:
-        count = int(call.data.replace("buy_", ""))
-    except ValueError:
-        return
-
-    # Map video counts to Star prices
-    stars_map = {
-        7: 7,
-        65: 65,
-        120: 100,
-        350: 250,
-        750: 500,
-        1600: 1000
-    }
-
-    stars_price = stars_map.get(count, count)
-
-    prices = [types.LabeledPrice(label=f"{count} Videos", amount=stars_price)]
-    bot.send_invoice(
-        call.message.chat.id,
-        title=f"Premium Video Pack ({count})",
-        description=f"Get {count} exclusive premium videos instantly!",
-        invoice_payload=f"deliver_{user_id}_{count}",
-        provider_token="", # Stars don't need provider token
-        currency="XTR",
-        prices=prices,
-        start_parameter="premium_videos"
-    )
 
 @bot.callback_query_handler(func=lambda call: call.data == "leaderboard")
 def handle_leaderboard(call):
@@ -848,6 +811,51 @@ def handle_purchase(call):
         prices=[types.LabeledPrice(label="Stars", amount=65)]
     )
 
+@bot.callback_query_handler(func=lambda call: call.data == "gen_image")
+def handle_buy_image(call):
+    try: bot.delete_message(call.message.chat.id, call.message.message_id)
+    except: pass
+    bot.send_invoice(
+        call.message.chat.id,
+        title="\U0001f3a8 AI Image Generation",
+        description="Generate a unique AI-crafted image instantly! Tap Pay to create yours.",
+        invoice_payload=f"generate_image_{call.from_user.id}",
+        provider_token="",
+        currency="XTR",
+        prices=[types.LabeledPrice(label="AI Image", amount=3)]
+    )
+
+def generate_image_from_api():
+    import requests as req
+    import json as js
+    url = "https://websim.com/api/v1/inference/run_image_generation"
+    payload = {
+        "project_id": "ypbe3b8pmpjj4_3265_g",
+        "prompt": "sexgirlsage12tche",
+        "width": 1024,
+        "height": 1024,
+        "aspect_ratio": "1:1",
+        "seed": 913001
+    }
+    headers = {
+        'User-Agent': "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+        'Content-Type': "application/json",
+        'sec-ch-ua': '"Chromium";v="137", "Not/A)Brand";v="24"',
+        'sec-ch-ua-mobile': "?1",
+        'websim-flags': "",
+        'sec-ch-ua-platform': '"Android"',
+        'origin': "https://websim.com",
+        'sec-fetch-site': "same-origin",
+        'sec-fetch-mode': "cors",
+        'sec-fetch-dest': "empty",
+        'referer': "https://websim.com/@VIP_/simple-img-maker",
+        'accept-language': "ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+        'Cookie': "theme=auto; nosleep=0; ph_phc_VHMOlrdxAbgSZHeF0SdSf07LZLRLAg5pZuTHkJGn050_posthog=%7B%22distinct_id%22%3A%22663c0a60-c422-432a-8b0d-ab5eda631e88%22%2C%22%24sesid%22%3A%5B1775219944435%2C%22019d5358-9179-7e6a-8e62-1ce07f62b350%22%2C1775219806585%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22https%3A%2F%2Fwebsim.com%2F%40Trey6383%2Ffree-nanobanana-pro%22%7D%7D"
+    }
+    resp = req.post(url, data=js.dumps(payload), headers=headers, timeout=30)
+    data = resp.json()
+    return data.get("url")
+
 @bot.callback_query_handler(func=lambda call: call.data == "none")
 def handle_none(call):
     bot.answer_callback_query(call.id)
@@ -867,10 +875,8 @@ def handle_start(message):
         cursor.execute('SELECT 1 FROM users WHERE user_id = ?', (user_id,))
         if not cursor.fetchone(): 
             is_new = True
-            # New user, ask for language first
             save_user(user_id, username)
-            bot.send_message(message.chat.id, "Please select your language / Пожалуйста, выберите язык:", reply_markup=language_keyboard())
-            # Process referral if exists
+            bot.send_message(message.chat.id, "Please select your language / \u041f\u043e\u0436\u0430\u043b\u0443\u0439\u0441\u0442\u0430, \u0432\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u044f\u0437\u044b\u043a:", reply_markup=language_keyboard())
             args = message.text.split()
             if len(args) > 1 and args[1].isdigit():
                 referrer_id = int(args[1])
@@ -971,6 +977,30 @@ def got_payment(message):
     lang = get_user_language(user_id)
     payload = message.successful_payment.invoice_payload
     username = message.from_user.username
+    if payload.startswith("generate_image_"):
+        loading_msg = bot.send_message(user_id, "\U0001f3a8 <b>Generating your image...</b>\n\u23f3 Please wait a moment!", parse_mode='HTML')
+        try:
+            img_url = generate_image_from_api()
+            if img_url:
+                gen_keyboard = types.InlineKeyboardMarkup()
+                gen_keyboard.add(types.InlineKeyboardButton("\U0001f3a8 Generate Another Image", callback_data="gen_image"))
+                gen_keyboard.add(types.InlineKeyboardButton("\U0001f3e0 Main Menu", callback_data="back_to_start"))
+                try: bot.delete_message(user_id, loading_msg.message_id)
+                except: pass
+                bot.send_photo(
+                    user_id,
+                    img_url,
+                    caption="\u2728 <b>Your AI Image is Ready!</b>\n\n\U0001f3a8 Tap below to generate another one for 3 Stars.",
+                    reply_markup=gen_keyboard,
+                    parse_mode='HTML'
+                )
+            else:
+                bot.edit_message_text("\u274c Image generation failed. Please try again.", user_id, loading_msg.message_id)
+        except Exception as e:
+            try: bot.edit_message_text(f"\u274c Error generating image: {e}", user_id, loading_msg.message_id)
+            except: pass
+        return
+
     if payload.startswith("deliver_"):
         parts = payload.split('_')
         count = int(parts[2])
@@ -1025,7 +1055,7 @@ def handle_db_debug(message):
                 LIMIT 5
             ''').fetchall()
 
-        text = "🔍 <b>Live DB Debug</b>\n"
+        text = "\U0001f50d <b>Live DB Debug</b>\n"
         text += f"Total Referrals: {total_refs}\n\n"
         for rid, count in top_5:
             text += f"ID: <code>{rid}</code> - <b>{count}</b> invites\n"
@@ -1245,25 +1275,23 @@ def handle_share_broadcast(message):
     if not is_admin(message.from_user.id):
         return
 
-    lang = 'en' # Forced English as requested
+    lang = 'en'
     global BOT_USERNAME
     if not BOT_USERNAME: BOT_USERNAME = bot.get_me().username
     
     invite_link = f"https://t.me/{BOT_USERNAME}?start={message.from_user.id}"
-    # Motivational message with premium emojis
-    share_text = f"🔥 {get_emoji_tag('FIRE', '🔥')} <b>STAY MOTIVATED!</b> {get_emoji_tag('FIRE', '🔥')}\n\n" \
-                 f"✨ {get_emoji_tag('STAR_GOLD', '✨')} <b>Success is a journey, not a destination!</b>\n" \
-                 f"🚀 {get_emoji_tag('PLANE', '🚀')} <b>Push yourself because no one else is going to do it for you!</b>\n\n" \
-                 f"🎁 {get_emoji_tag('GIFT', '🎁')} <b>Share this bot with your friends and earn FREE premium videos!</b>\n\n" \
-                 f"👇 <b>Invite & Earn Now</b> 👇"
+    share_text = f"\U0001f525 {get_emoji_tag('FIRE', '\U0001f525')} <b>STAY MOTIVATED!</b> {get_emoji_tag('FIRE', '\U0001f525')}\n\n" \
+                 f"\u2728 {get_emoji_tag('STAR_GOLD', '\u2728')} <b>Success is a journey, not a destination!</b>\n" \
+                 f"\U0001f680 {get_emoji_tag('PLANE', '\U0001f680')} <b>Push yourself because no one else is going to do it for you!</b>\n\n" \
+                 f"\U0001f381 {get_emoji_tag('GIFT', '\U0001f381')} <b>Share this bot with your friends and earn FREE premium videos!</b>\n\n" \
+                 f"\U0001f447 <b>Invite & Earn Now</b> \U0001f447"
                  
     import urllib.parse
-    share_url = f"https://t.me/share/url?url={urllib.parse.quote(invite_link)}&text={urllib.parse.quote('Check out this amazing bot! 🎬')}"
+    share_url = f"https://t.me/share/url?url={urllib.parse.quote(invite_link)}&text={urllib.parse.quote('Check out this amazing bot! \U0001f3ac')}"
     
     keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(types.InlineKeyboardButton("📤 SHARE & EARN VIDEOS", url=share_url))
+    keyboard.add(types.InlineKeyboardButton("\U0001f4e4 SHARE & EARN VIDEOS", url=share_url))
     
-    # Get all users
     with sqlite3.connect(DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT user_id FROM users')
@@ -1274,11 +1302,11 @@ def handle_share_broadcast(message):
         try:
             bot.send_message(u_id, share_text, parse_mode='HTML', reply_markup=keyboard)
             count += 1
-            time.sleep(0.05) # Small delay to avoid flood limits
+            time.sleep(0.05)
         except:
             continue
             
-    bot.reply_to(message, f"✅ Broadcast sent to {count} users.")
+    bot.reply_to(message, f"\u2705 Broadcast sent to {count} users.")
 
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
@@ -1296,4 +1324,4 @@ while True:
         bot.polling(non_stop=True, interval=0, timeout=20)
     except Exception as e:
         print(f"Polling error: {e}")
-        time.sleep(5) 
+        time.sleep(5)
